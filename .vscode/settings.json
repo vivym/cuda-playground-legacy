@@ -1,0 +1,14 @@
+{
+  "[python]": {   
+    "editor.tabSize": 4,
+  },
+  "[cpp]": {
+    "editor.tabSize": 2,
+  },
+  "editor.tabSize": 4,
+  "cmake.configureOnEdit": false,
+  "files.associations": {
+    "exception": "cpp",
+    "stdexcept": "cpp"
+  }
+}
