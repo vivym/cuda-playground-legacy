@@ -1,8 +1,8 @@
 add_library(_ops MODULE)
 
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CUDAPlayground_SOURCE_DIR}/include/**/*.h")
-file(GLOB CPP_SRC CONFIGURE_DEPENDS "**/*.cpp")
-file(GLOB CUDA_SRC CONFIGURE_DEPENDS "**/*.cu")
+file(GLOB CPP_SRC CONFIGURE_DEPENDS "**/*.cpp" "*.cpp")
+file(GLOB CUDA_SRC CONFIGURE_DEPENDS "**/*.cu" "*.cu")
 
 target_sources(_ops
   PRIVATE

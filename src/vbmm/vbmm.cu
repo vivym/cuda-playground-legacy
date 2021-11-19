@@ -6,20 +6,6 @@ namespace cuda_playground {
 
 namespace vbmm {
 
-void vbmm_cuda_vanilla(
-    const VBMatrices& A,
-    const VBMatrices& B,
-    VBMatrices& C,
-    float alpha, float beta,
-    bool transA, bool transB);
-
-void vbmm_cuda_magma(
-    const VBMatrices& A,
-    const VBMatrices& B,
-    VBMatrices& C,
-    float alpha, float beta,
-    bool transA, bool transB);
-
 void vbmm_cuda(
     const VBMatrices& A,
     const VBMatrices& B,

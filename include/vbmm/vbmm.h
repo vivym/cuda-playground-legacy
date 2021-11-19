@@ -20,6 +20,20 @@ void vbmm_cuda(
     bool transA, bool transB,
     Algo algo);
 
+void vbmm_cuda_vanilla(
+    const VBMatrices& A,
+    const VBMatrices& B,
+    VBMatrices& C,
+    float alpha, float beta,
+    bool transA, bool transB);
+
+void vbmm_cuda_magma(
+    const VBMatrices& A,
+    const VBMatrices& B,
+    VBMatrices& C,
+    float alpha, float beta,
+    bool transA, bool transB);
+
 inline void vbmm(
     const VBMatrices& A,
     const VBMatrices& B,
