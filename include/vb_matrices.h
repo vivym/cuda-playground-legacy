@@ -42,16 +42,41 @@ public:
     return n_cpu_;
   }
 
+  const at::Tensor& get_offsets() const {
+    if (!offsets_.defined()) {
+      offsets_ = get_offsets_impl();
+    }
+    return offsets_;
+  }
+
+  const at::Tensor& get_addresses() const {
+    if (!addresses_.defined()) {
+      addresses_ = get_addresses_impl();
+    }
+    return addresses_;
+  }
+
+
   bool is_defined() const { return data_.defined(); }
 
   void init(index_t batch_size, const at::Tensor &m, const at::Tensor &n, const at::TensorOptions &options);
+
+  std::vector<at::Tensor> pack_up(std::vector<index_t> delimeters) const;
+
 private:
-  index_t batch_size_ = 0;
+  at::Tensor get_offsets_impl() const;
+
+  at::Tensor get_addresses_impl() const;
+
+private:
+  index_t batch_size_{ 0 };
   at::Tensor data_;
   at::Tensor m_;
   at::Tensor n_;
   mutable at::Tensor m_cpu_;
   mutable at::Tensor n_cpu_;
+  mutable at::Tensor offsets_;
+  mutable at::Tensor addresses_;
 };
 
 } // namespace cuda_playground

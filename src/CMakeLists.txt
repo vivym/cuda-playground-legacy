@@ -26,7 +26,7 @@ target_link_libraries(_ops
 )
 
 target_compile_options(_ops PRIVATE
-  $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>
+  $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
 )
 set_property(TARGET _ops PROPERTY CXX_STANDARD 17)
 

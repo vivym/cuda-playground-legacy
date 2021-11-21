@@ -76,6 +76,13 @@
     "streambuf": "cpp",
     "thread": "cpp",
     "typeindex": "cpp",
-    "valarray": "cpp"
-  }
+    "valarray": "cpp",
+    "strstream": "cpp",
+    "future": "cpp",
+    "cfenv": "cpp",
+    "*.ipp": "cpp"
+  },
+  "C_Cpp.default.cppStandard": "c++17",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/_skbuild/linux-x86_64-3.8/cmake-build/compile_commands.json",
+  "cmake.buildDirectory": "${workspaceFolder}/_skbuild/linux-x86_64-3.8/cmake-build"
 }

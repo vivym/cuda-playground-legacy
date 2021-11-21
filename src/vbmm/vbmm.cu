@@ -17,6 +17,9 @@ void vbmm_cuda(
   case Algo::Vanilla:
     vbmm_cuda_vanilla(A, B, C, alpha, beta, transA, transB);
     break;
+  case Algo::Stream:
+    vbmm_cuda_stream(A, B, C, alpha, beta, transA, transB);
+    break;
   case Algo::MAGMA:
     vbmm_cuda_magma(A, B, C, alpha, beta, transA, transB);
     break;

@@ -8,6 +8,7 @@ namespace vbmm {
 
 enum class Algo {
   Vanilla = 0,
+  Stream,
   MAGMA,
   PACK
 };
@@ -21,6 +22,13 @@ void vbmm_cuda(
     Algo algo);
 
 void vbmm_cuda_vanilla(
+    const VBMatrices& A,
+    const VBMatrices& B,
+    VBMatrices& C,
+    float alpha, float beta,
+    bool transA, bool transB);
+
+void vbmm_cuda_stream(
     const VBMatrices& A,
     const VBMatrices& B,
     VBMatrices& C,
