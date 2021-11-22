@@ -27,13 +27,4 @@ find_library(MAGMA_LIBRARY magma REQUIRED PATHS "/usr/local/magma/lib" "$ENV{CON
 # cuda
 find_package(CUDAToolkit REQUIRED)
 
-# # thrust
-# include(FetchContent)
-# FetchContent_Declare(
-#   Thrust
-#   GIT_REPOSITORY  https://github.com/NVIDIA/thrust.git
-#   GIT_TAG         1.14.0
-# )
-# FetchContent_MakeAvailable(Thrust)
-
 add_subdirectory(src)

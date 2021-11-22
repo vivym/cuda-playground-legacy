@@ -61,7 +61,9 @@ public:
 
   void init(index_t batch_size, const at::Tensor &m, const at::Tensor &n, const at::TensorOptions &options);
 
-  std::vector<at::Tensor> pack_up(std::vector<index_t> delimeters) const;
+  std::tuple<std::vector<index_t>, std::vector<at::Tensor>> pack_up() const;
+
+  at::Tensor group_by() const;
 
 private:
   at::Tensor get_offsets_impl() const;

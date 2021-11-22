@@ -20,13 +20,19 @@ def main():
         B_.append(torch.randn(k, n).contiguous().cuda())
 
     A = VBMatrices(A_)
-    A_packed = A.pack_up()
+    for _ in range(10):
+        indices = A.group_by()
 
-    print("num_pack:", len(A_packed))
-    for A_i in A_packed:
-        print(A_i.shape)
+    times = []
+    for _ in range(50):
+        start_time = time.time()
+        indices = A.group_by()
+        times.append(time.time() - start_time)
 
-    print("done")
+    print(np.mean(times) * 1000)
+
+    print(indices.shape)
+    print(A.data.shape)
 
 
 if __name__ == "__main__":
