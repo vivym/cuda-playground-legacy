@@ -1,7 +1,9 @@
 #pragma once
 
 #include <torch/types.h>
+#include <tuple>
 #include <vector>
+#include <optional>
 
 namespace cuda_playground {
 
@@ -12,13 +14,18 @@ public:
   VBMatrices() {}
 
   VBMatrices(index_t batch_size, const at::Tensor &data, const at::Tensor &m, const at::Tensor &n)
-    : batch_size_(batch_size), data_(data), m_(m), n_(n) {}
+    : batch_size_(batch_size), num_groups_(batch_size), data_(data), m_(m), n_(n) {}
 
-  VBMatrices(const std::vector<at::Tensor> matrices);
+  VBMatrices(index_t batch_size, index_t num_groups, const at::Tensor &data, const at::Tensor &m, const at::Tensor &n)
+    : batch_size_(batch_size), num_groups_(num_groups), data_(data), m_(m), n_(n) {}
+
+  VBMatrices(const std::vector<at::Tensor>& matrices);
 
   index_t batch_size() const { return batch_size_; }
 
   const at::Tensor& data() const { return data_; }
+
+  at::Tensor& data() { return data_; }
 
   at::ScalarType scalar_type() const { return data_.scalar_type(); }
 
@@ -59,19 +66,24 @@ public:
 
   bool is_defined() const { return data_.defined(); }
 
-  void init(index_t batch_size, const at::Tensor &m, const at::Tensor &n, const at::TensorOptions &options);
+  void reset(index_t batch_size, const at::Tensor &m, const at::Tensor &n, const at::TensorOptions &options);
+
+  void reset(
+      index_t batch_size,
+      index_t num_groups,
+      const at::Tensor &m,
+      const at::Tensor &n,
+      const at::TensorOptions &options,
+      std::optional<at::Tensor> group_sizes = std::nullopt,
+      bool zero_init = false);
 
   std::tuple<std::vector<index_t>, std::vector<at::Tensor>> pack_up() const;
 
-  at::Tensor group_by() const;
+  std::tuple<VBMatrices, at::Tensor> group_by() const;
 
   index_t num_groups() const { return num_groups_; }
 
   const at::Tensor& group_sizes() const { return group_sizes_; }
-
-  const at::Tensor& padded_m() const { return padded_m_; }
-
-  const at::Tensor& padded_n() const { return padded_n_; }
 
 private:
   at::Tensor get_offsets_impl() const;
@@ -80,18 +92,16 @@ private:
 
 private:
   index_t batch_size_{ 0 };
+  index_t num_groups_{ 0 };
   at::Tensor data_;
+
+  at::Tensor group_sizes_;
   at::Tensor m_;
   at::Tensor n_;
   mutable at::Tensor m_cpu_;
   mutable at::Tensor n_cpu_;
   mutable at::Tensor offsets_;
   mutable at::Tensor addresses_;
-
-  index_t num_groups_{ 0 };
-  at::Tensor group_sizes_;
-  at::Tensor padded_m_;
-  at::Tensor padded_n_;
 };
 
 } // namespace cuda_playground

@@ -26,7 +26,7 @@ void vbmm_cuda_stream_impl(
   auto B_n_ptr = B.n_cpu().data_ptr<index_t>();
 
   if (!C.is_defined()) {
-    C.init(batch_size, A.m(), B.n(), options);
+    C.reset(batch_size, A.m(), B.n(), options);
   }
 
   auto C_data_ptr = C.data().data_ptr<scalar_t>();

@@ -83,7 +83,7 @@ void vbmm_cuda_magma_impl(
   const at::Tensor &n = transB ? B.m() : B.n();
 
   if (!C.is_defined()) {
-    C.init(batch_size, A.m(), B.n(), options);
+    C.reset(batch_size, A.m(), B.n(), options);
   }
 
   auto dA_array = A.addresses();

@@ -21,18 +21,18 @@ def main():
 
     A = VBMatrices(A_)
     for _ in range(10):
-        indices = A.group_by()
+        grouped_A, masks = A.group_by()
 
     times = []
     for _ in range(50):
         start_time = time.time()
-        indices = A.group_by()
+        grouped_A, masks = A.group_by()
         times.append(time.time() - start_time)
 
     print(np.mean(times) * 1000)
 
-    print(indices.shape)
-    print(A.data.shape)
+    print(grouped_A.data.shape)
+    print(masks.shape)
 
 
 if __name__ == "__main__":

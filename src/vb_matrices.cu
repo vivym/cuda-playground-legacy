@@ -2,6 +2,7 @@
 #include <thrust/device_ptr.h>
 #include <thrust/gather.h>
 #include <thrust/scan.h>
+#include <thrust/reduce.h>
 #include <thrust/transform_reduce.h>
 #include <thrust/transform_scan.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -33,7 +34,7 @@ index_t get_total_size(
       thrust::plus<index_t>());
 }
 
-VBMatrices::VBMatrices(const std::vector<at::Tensor> matrices) {
+VBMatrices::VBMatrices(const std::vector<at::Tensor>& matrices) {
   batch_size_ = matrices.size();
   at::Tensor m_cpu = at::empty({batch_size_ + 1}, at::kInt);  // TODO: kInt -> index_t
   at::Tensor n_cpu = at::empty({batch_size_ + 1}, at::kInt);
@@ -42,15 +43,27 @@ VBMatrices::VBMatrices(const std::vector<at::Tensor> matrices) {
   auto n_ptr = n_cpu.data_ptr<index_t>();
 
   index_t data_size = 0;
+  index_t last_n = -1;
+  bool same_n = true;
   for (index_t i = 0; i < batch_size_; i++) {
     const auto& matrix = matrices[i];
     index_t m = matrix.size(0), n = matrix.size(1);
     m_ptr[i] = m;
     n_ptr[i] = n;
     data_size += m * n;
+
+    if (last_n != -1 && last_n != n) {
+      same_n = false;
+    }
+    last_n = n;
   }
 
-  data_ = at::empty({data_size}, matrices[0].options());
+  if (same_n) {
+    data_ = at::empty({data_size / last_n, last_n}, matrices[0].options());
+  } else {
+    data_ = at::empty({data_size}, matrices[0].options());
+  }
+
   
   m_cpu_ = m_cpu;
   n_cpu_ = n_cpu;
@@ -75,16 +88,38 @@ VBMatrices::VBMatrices(const std::vector<at::Tensor> matrices) {
   });
 }
 
-void VBMatrices::init(int32_t batch_size, const at::Tensor &m, const at::Tensor &n, const at::TensorOptions &options) {
+void VBMatrices::reset(index_t batch_size, const at::Tensor &m, const at::Tensor &n, const at::TensorOptions &options) {
+  reset(batch_size, batch_size, m, n, options);
+}
+
+void VBMatrices::reset(
+    index_t batch_size,
+    index_t num_groups,
+    const at::Tensor &m,
+    const at::Tensor &n,
+    const at::TensorOptions &options,
+    std::optional<at::Tensor> group_sizes,
+    bool zero_init) {
   batch_size_ = batch_size;
+  num_groups_ = num_groups;
   m_ = m;
   n_ = n;
+
+  if (group_sizes.has_value()) {
+    group_sizes_ = group_sizes.value();
+  }
 
   auto m_ptr = thrust::device_ptr<index_t>(m.data_ptr<index_t>());
   auto n_ptr = thrust::device_ptr<index_t>(n.data_ptr<index_t>());
 
   auto data_size = get_total_size(batch_size, m_ptr, n_ptr);
-  data_ = at::empty({data_size}, options);
+  if (zero_init) {
+    data_ = at::zeros({data_size}, options);
+  } else {
+    data_ = at::empty({data_size}, options);
+  }
+
+  // TODO: reset cached tensor
 }
 
 // work around the limitation of the lambda function in cuda
@@ -312,14 +347,15 @@ namespace {
   }
 
   template <typename policy_t, typename index_t>
-  inline void generate_indices(
+  inline void generate_indices_and_masks(
       const policy_t& policy,
       index_t batch_size,
       thrust::device_ptr<index_t> unsorted_m_offsets_ptr,
       thrust::device_ptr<index_t> inverse_sorted_indices_ptr,
       thrust::device_ptr<index_t> padded_m_offsets_ptr,
       thrust::device_ptr<index_t> unsorted_m_ptr,
-      thrust::device_ptr<index_t> indices_ptr) {
+      thrust::device_ptr<index_t> indices_ptr,
+      thrust::device_ptr<index_t> masks_ptr) {
     thrust::for_each(
         policy,
         thrust::make_counting_iterator<index_t>(0),
@@ -333,12 +369,17 @@ namespace {
               policy,
               indices_ptr + m_offset, indices_ptr + m_offset + m,
               static_cast<index_t>(padded_m_offset));
+          thrust::fill(policy, masks_ptr + m_offset, masks_ptr + m_offset + m, static_cast<index_t>(1));
         });
   }
 }
 
 
-at::Tensor VBMatrices::group_by() const {
+std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by() const {
+  if (data_.dim() != 2) {
+    throw std::runtime_error("VBMatrices::group_by() only supports 2D tensors");
+  }
+
   auto policy = thrust::cuda::par(ThrustAllocator()).on(at::cuda::getCurrentCUDAStream());
   
   auto options = m_.options();
@@ -385,28 +426,46 @@ at::Tensor VBMatrices::group_by() const {
   auto indices = at::empty({total_size}, options);
   auto indices_ptr = thrust::device_ptr<index_t>(indices.data_ptr<index_t>());
   
-  generate_indices(
+  auto masks = at::empty({total_size}, options);
+  auto masks_ptr = thrust::device_ptr<index_t>(masks.data_ptr<index_t>());
+
+  generate_indices_and_masks(
       policy,
       batch_size_,
       unsorted_m_offsets_ptr,
       inverse_sorted_indices_ptr,
       padded_m_offsets_ptr,
       unsorted_m_ptr,
-      indices_ptr);
+      indices_ptr,
+      masks_ptr);
 
-  return indices;
-  // index_t total_padded_size = thrust::reduce(policy, padded_m_ptr, padded_m_ptr + batch_size_);
+  auto group_m = at::empty({static_cast<int64_t>(delimeters.size())}, options);
+  auto group_m_ptr = thrust::device_ptr<index_t>(group_m.data_ptr<index_t>());
 
-  // auto group_sizes = at::empty({static_cast<int64_t>(delimeters.size())}, options);
-  // auto group_sizes_ptr = thrust::device_ptr<index_t>(group_sizes.data_ptr<index_t>());
+  auto group_sizes = at::empty({static_cast<int64_t>(delimeters.size())}, options);
+  auto group_sizes_ptr = thrust::device_ptr<index_t>(group_sizes.data_ptr<index_t>());
 
-  // auto new_end = thrust::reduce_by_key(
-  //     policy,
-  //     padded_m_ptr, padded_m_ptr + batch_size_,
-  //     thrust::make_constant_iterator<index_t>(1),
-  //     thrust::make_discard_iterator(),
-  //     group_sizes_ptr);
-  // index_t num_groups = thrust::distance(group_sizes_ptr, new_end.second);
+  auto new_end = thrust::reduce_by_key(
+      policy,
+      padded_m_ptr, padded_m_ptr + batch_size_,
+      thrust::make_constant_iterator<index_t>(1),
+      group_m_ptr,
+      group_sizes_ptr);
+
+  index_t num_groups = thrust::distance(group_sizes_ptr, new_end.second);
+
+  VBMatrices grouped_matrices;
+
+  auto group_m_cpu = group_m.cpu();
+  auto group_n_cpu = at::full_like(group_m_cpu, data_.size(1));
+  auto group_sizes_cpu = group_sizes.cpu();
+  grouped_matrices.reset(batch_size_, num_groups, group_m_cpu, group_n_cpu, data_.options(), group_sizes_cpu, true);
+  grouped_matrices.data().index_put_({indices, "..."}, data_);
+
+  return {
+    std::move(grouped_matrices),
+    std::move(masks)
+  };
 }
 
 } // namespace cuda_playground
