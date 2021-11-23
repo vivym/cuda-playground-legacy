@@ -146,7 +146,7 @@ void get_addresses_impl_thrust(
 }
 
 at::Tensor VBMatrices::get_addresses_impl() const {
-  const auto& offsets = get_offsets();
+  const auto& offsets = this->offsets();
   at::Tensor addresses = at::empty({batch_size_}, m_.options().dtype(at::kLong));
 
   AT_DISPATCH_FLOATING_TYPES(data_.scalar_type(), "VBMatrices::get_addresses_impl", [&] {
@@ -339,8 +339,7 @@ namespace {
 
 
 at::Tensor VBMatrices::group_by() const {
-  ThrustAllocator allocator;
-  auto policy = thrust::cuda::par(allocator).on(at::cuda::getCurrentCUDAStream());
+  auto policy = thrust::cuda::par(ThrustAllocator()).on(at::cuda::getCurrentCUDAStream());
   
   auto options = m_.options();
 

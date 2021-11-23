@@ -16,17 +16,17 @@ public:
 
   VBMatrices(const std::vector<at::Tensor> matrices);
 
-  index_t get_batch_size() const { return batch_size_; }
+  index_t batch_size() const { return batch_size_; }
 
-  const at::Tensor& get_data() const { return data_; }
+  const at::Tensor& data() const { return data_; }
 
-  at::ScalarType get_scalar_type() const { return data_.scalar_type(); }
+  at::ScalarType scalar_type() const { return data_.scalar_type(); }
 
-  const at::Tensor& get_m() const { return m_; }
+  const at::Tensor& m() const { return m_; }
 
-  const at::Tensor& get_n() const { return n_; }
+  const at::Tensor& n() const { return n_; }
 
-  const at::Tensor& get_m_cpu() const {
+  const at::Tensor& m_cpu() const {
     // TODO: thread-safe
     if (!m_cpu_.defined()) {
       m_cpu_ = m_.cpu();
@@ -34,7 +34,7 @@ public:
     return m_cpu_;
   }
 
-  const at::Tensor& get_n_cpu() const {
+  const at::Tensor& n_cpu() const {
     // TODO: thread-safe
     if (!n_cpu_.defined()) {
       n_cpu_ = n_.cpu();
@@ -42,14 +42,14 @@ public:
     return n_cpu_;
   }
 
-  const at::Tensor& get_offsets() const {
+  const at::Tensor& offsets() const {
     if (!offsets_.defined()) {
       offsets_ = get_offsets_impl();
     }
     return offsets_;
   }
 
-  const at::Tensor& get_addresses() const {
+  const at::Tensor& addresses() const {
     if (!addresses_.defined()) {
       addresses_ = get_addresses_impl();
     }
@@ -65,6 +65,14 @@ public:
 
   at::Tensor group_by() const;
 
+  index_t num_groups() const { return num_groups_; }
+
+  const at::Tensor& group_sizes() const { return group_sizes_; }
+
+  const at::Tensor& padded_m() const { return padded_m_; }
+
+  const at::Tensor& padded_n() const { return padded_n_; }
+
 private:
   at::Tensor get_offsets_impl() const;
 
@@ -79,6 +87,11 @@ private:
   mutable at::Tensor n_cpu_;
   mutable at::Tensor offsets_;
   mutable at::Tensor addresses_;
+
+  index_t num_groups_{ 0 };
+  at::Tensor group_sizes_;
+  at::Tensor padded_m_;
+  at::Tensor padded_n_;
 };
 
 } // namespace cuda_playground

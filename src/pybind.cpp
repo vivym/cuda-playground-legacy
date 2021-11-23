@@ -8,7 +8,7 @@ PYBIND11_MODULE(_ops, m) {
   py::class_<VBMatrices>(m, "VBMatrices")
     .def(py::init<>())
     .def(py::init<const std::vector<at::Tensor>>())
-    .def_property_readonly("data", &VBMatrices::get_data)
+    .def_property_readonly("data", &VBMatrices::data)
     .def("pack_up", &VBMatrices::pack_up)
     .def("group_by", &VBMatrices::group_by);
   

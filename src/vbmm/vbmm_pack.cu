@@ -12,23 +12,23 @@ void vbmm_cuda_pack_impl(
     VBMatrices& C,
     float alpha, float beta,
     bool transA, bool transB) {
-  auto batch_size = A.get_batch_size();
-  auto options = A.get_data().options();
+  auto batch_size = A.batch_size();
+  auto options = A.data().options();
 
-  auto A_data_ptr = A.get_data().data_ptr<scalar_t>();
-  auto A_m_ptr = A.get_m_cpu().data_ptr<index_t>();
-  auto A_n_ptr = A.get_n_cpu().data_ptr<index_t>();
-  auto B_data_ptr = B.get_data().data_ptr<scalar_t>();
-  auto B_m_ptr = B.get_m_cpu().data_ptr<index_t>();
-  auto B_n_ptr = B.get_n_cpu().data_ptr<index_t>();
+  auto A_data_ptr = A.data().data_ptr<scalar_t>();
+  auto A_m_ptr = A.m_cpu().data_ptr<index_t>();
+  auto A_n_ptr = A.n_cpu().data_ptr<index_t>();
+  auto B_data_ptr = B.data().data_ptr<scalar_t>();
+  auto B_m_ptr = B.m_cpu().data_ptr<index_t>();
+  auto B_n_ptr = B.n_cpu().data_ptr<index_t>();
 
   if (!C.is_defined()) {
-    C.init(batch_size, A.get_m(), B.get_n(), options);
+    C.init(batch_size, A.m(), B.n(), options);
   }
 
-  auto C_data_ptr = C.get_data().data_ptr<scalar_t>();
-  auto C_m_ptr = C.get_m_cpu().data_ptr<index_t>();
-  auto C_n_ptr = C.get_n_cpu().data_ptr<index_t>();
+  auto C_data_ptr = C.data().data_ptr<scalar_t>();
+  auto C_m_ptr = C.m_cpu().data_ptr<index_t>();
+  auto C_n_ptr = C.n_cpu().data_ptr<index_t>();
 
   index_t A_offset = 0, B_offset = 0, C_offset = 0;
   for (index_t i = 0; i < batch_size; i++) {
@@ -55,7 +55,7 @@ void vbmm_cuda_pack(
     VBMatrices& C,
     float alpha, float beta,
     bool transA, bool transB) {
-  AT_DISPATCH_FLOATING_TYPES(A.get_scalar_type(), "vbmm_cuda_pack", [&] {
+  AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "vbmm_cuda_pack", [&] {
     vbmm_cuda_pack_impl<scalar_t, VBMatrices::index_t>(
         A, B, C, alpha, beta, transA, transB);
   });

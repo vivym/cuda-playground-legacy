@@ -75,20 +75,20 @@ void vbmm_cuda_magma_impl(
   ThrustAllocator allocator;
   auto policy = thrust::cuda::par(allocator).on(stream);
 
-  auto batch_size = A.get_batch_size();
-  auto options = A.get_data().options();
+  auto batch_size = A.batch_size();
+  auto options = A.data().options();
   
-  const at::Tensor &m = transA ? A.get_n() : A.get_m();
-  const at::Tensor &k = transA ? A.get_m() : A.get_n();
-  const at::Tensor &n = transB ? B.get_m() : B.get_n();
+  const at::Tensor &m = transA ? A.n() : A.m();
+  const at::Tensor &k = transA ? A.m() : A.n();
+  const at::Tensor &n = transB ? B.m() : B.n();
 
   if (!C.is_defined()) {
-    C.init(batch_size, A.get_m(), B.get_n(), options);
+    C.init(batch_size, A.m(), B.n(), options);
   }
 
-  auto dA_array = A.get_addresses();
-  auto dB_array = B.get_addresses();
-  auto dC_array = C.get_addresses();
+  auto dA_array = A.addresses();
+  auto dB_array = B.addresses();
+  auto dC_array = C.addresses();
 
   auto dA_array_ptr = reinterpret_cast<scalar_t **>(dA_array.template data_ptr<int64_t>());
   auto dB_array_ptr = reinterpret_cast<scalar_t **>(dB_array.template data_ptr<int64_t>());
@@ -131,7 +131,7 @@ void vbmm_cuda_magma(
     VBMatrices& C,
     float alpha, float beta,
     bool transA, bool transB) {
-  AT_DISPATCH_FLOATING_TYPES(A.get_scalar_type(), "vbmm_cuda_magma", [&] {
+  AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "vbmm_cuda_magma", [&] {
     vbmm_cuda_magma_impl<scalar_t, VBMatrices::index_t>(
         A, B, C, alpha, beta, transA, transB);
   });
