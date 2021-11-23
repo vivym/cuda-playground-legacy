@@ -20,7 +20,7 @@ index_t get_total_size(
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   ThrustAllocator allocator;
   auto policy = thrust::cuda::par(allocator).on(stream);
-  
+
   return thrust::transform_reduce(
       policy,
       thrust::make_zip_iterator(thrust::make_tuple(m_ptr, n_ptr)),
@@ -34,8 +34,32 @@ index_t get_total_size(
       thrust::plus<index_t>());
 }
 
+template <typename index_t>
+index_t get_total_size(
+    index_t batch_size,
+    thrust::device_ptr<index_t> group_sizes_ptr,
+    thrust::device_ptr<index_t> m_ptr,
+    thrust::device_ptr<index_t> n_ptr) {
+  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  ThrustAllocator allocator;
+  auto policy = thrust::cuda::par(allocator).on(stream);
+
+  return thrust::transform_reduce(
+      policy,
+      thrust::make_zip_iterator(thrust::make_tuple(group_sizes_ptr, m_ptr, n_ptr)),
+      thrust::make_zip_iterator(thrust::make_tuple(group_sizes_ptr + batch_size, m_ptr + batch_size, n_ptr + batch_size)),
+      [] __device__ (thrust::tuple<index_t, index_t, index_t> tuple) {
+        index_t group_size, m, n;
+        thrust::tie(group_size, m, n) = tuple;
+        return group_size * m * n;
+      },
+      0,
+      thrust::plus<index_t>());
+}
+
 VBMatrices::VBMatrices(const std::vector<at::Tensor>& matrices) {
   batch_size_ = matrices.size();
+  num_groups_ = batch_size_;
   at::Tensor m_cpu = at::empty({batch_size_ + 1}, at::kInt);  // TODO: kInt -> index_t
   at::Tensor n_cpu = at::empty({batch_size_ + 1}, at::kInt);
 
@@ -63,7 +87,6 @@ VBMatrices::VBMatrices(const std::vector<at::Tensor>& matrices) {
   } else {
     data_ = at::empty({data_size}, matrices[0].options());
   }
-
   
   m_cpu_ = m_cpu;
   n_cpu_ = n_cpu;
@@ -112,7 +135,14 @@ void VBMatrices::reset(
   auto m_ptr = thrust::device_ptr<index_t>(m.data_ptr<index_t>());
   auto n_ptr = thrust::device_ptr<index_t>(n.data_ptr<index_t>());
 
-  auto data_size = get_total_size(batch_size, m_ptr, n_ptr);
+  index_t data_size;
+  if (group_sizes.has_value()) {
+    auto group_sizes_ptr = thrust::device_ptr<index_t>(group_sizes_.data_ptr<index_t>());
+    data_size = get_total_size(num_groups, group_sizes_ptr, m_ptr, n_ptr);
+  } else {
+    data_size = get_total_size(batch_size, m_ptr, n_ptr);
+  }
+
   if (zero_init) {
     data_ = at::zeros({data_size}, options);
   } else {
@@ -456,11 +486,10 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by() const {
 
   VBMatrices grouped_matrices;
 
-  auto group_m_cpu = group_m.cpu();
-  auto group_n_cpu = at::full_like(group_m_cpu, data_.size(1));
-  auto group_sizes_cpu = group_sizes.cpu();
-  grouped_matrices.reset(batch_size_, num_groups, group_m_cpu, group_n_cpu, data_.options(), group_sizes_cpu, true);
-  grouped_matrices.data().index_put_({indices, "..."}, data_);
+  auto group_n = at::full_like(group_m, data_.size(1));
+  grouped_matrices.reset(batch_size_, num_groups, group_m, group_n, data_.options(), group_sizes, true);
+  grouped_matrices.data() = grouped_matrices.data().reshape({ -1, data_.size(1) });
+  grouped_matrices.data().index_put_({indices.toType(at::kLong), "..."}, data_);
 
   return {
     std::move(grouped_matrices),

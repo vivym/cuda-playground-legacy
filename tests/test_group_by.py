@@ -16,8 +16,8 @@ def main():
     for _ in range(batch_size):
         m, n, k = random.randint(32, 256), random.randint(32, 256), 64
         # m, n, k = 256, 256, 64
-        A_.append(torch.randn(m, k).contiguous().cuda())
-        B_.append(torch.randn(k, n).contiguous().cuda())
+        A_.append(torch.randn(m, k, dtype=torch.float32).contiguous().cuda())
+        B_.append(torch.randn(k, n, dtype=torch.float32).contiguous().cuda())
 
     A = VBMatrices(A_)
     for _ in range(10):
@@ -33,6 +33,43 @@ def main():
 
     print(grouped_A.data.shape)
     print(masks.shape)
+
+    C = VBMatrices()
+    for _ in range(10):
+        vbmm(grouped_A, grouped_A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
+    
+    times = []
+    for _ in range(50):
+        start_time = time.time()
+        vbmm(grouped_A, grouped_A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
+        times.append(time.time() - start_time)
+
+    print(np.mean(times) * 1000)
+
+    C = VBMatrices()
+    for _ in range(10):
+        vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
+    
+    times = []
+    for _ in range(50):
+        start_time = time.time()
+        vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
+        times.append(time.time() - start_time)
+
+    print(np.mean(times) * 1000)
+
+    A = torch.randn(batch_size, 256, 64, dtype=torch.float32).cuda()
+
+    for _ in range(10):
+        C = A @ A.transpose(1, 2)
+    
+    times = []
+    for _ in range(50):
+        start_time = time.time()
+        C = A @ A.transpose(1, 2)
+        times.append(time.time() - start_time)
+
+    print(np.mean(times) * 1000)
 
 
 if __name__ == "__main__":

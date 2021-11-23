@@ -19,19 +19,22 @@ void vbmm_cuda_vanilla_impl(
   auto options = A.data().options();
 
   if (!C.is_defined()) {
-    C.reset(batch_size, A.m(), B.n(), options);
+    C.reset(batch_size, transA ? A.n() : A.m(), transB ? B.m() : B.n(), options);
   }
 
   auto A_data_ptr = A.data().data_ptr<scalar_t>();
   auto B_data_ptr = B.data().data_ptr<scalar_t>();
   auto C_data_ptr = C.data().data_ptr<scalar_t>();
 
-  auto A_m_ptr = A.m().data_ptr<index_t>();
-  auto B_m_ptr = B.m().data_ptr<index_t>();
-  auto C_m_ptr = C.m().data_ptr<index_t>();
-  auto A_n_ptr = A.n().data_ptr<index_t>();
-  auto B_n_ptr = B.n().data_ptr<index_t>();
-  auto C_n_ptr = C.n().data_ptr<index_t>();
+  auto A_m = A.m().cpu(), B_m = B.m().cpu(), C_m = C.m().cpu();
+  auto A_n = A.n().cpu(), B_n = B.n().cpu(), C_n = C.n().cpu();
+
+  auto A_m_ptr = A_m.data_ptr<index_t>();
+  auto B_m_ptr = B_m.data_ptr<index_t>();
+  auto C_m_ptr = C_m.data_ptr<index_t>();
+  auto A_n_ptr = A_n.data_ptr<index_t>();
+  auto B_n_ptr = B_n.data_ptr<index_t>();
+  auto C_n_ptr = C_n.data_ptr<index_t>();
 
   index_t A_offset = 0, B_offset = 0, C_offset = 0;
   for (index_t i = 0; i < batch_size; i++) {
@@ -42,6 +45,14 @@ void vbmm_cuda_vanilla_impl(
     auto A_i = at::from_blob(A_data_ptr + A_offset, {A_m, A_n}, options);
     auto B_i = at::from_blob(B_data_ptr + B_offset, {B_m, B_n}, options);
     auto C_i = at::from_blob(C_data_ptr + C_offset, {C_m, C_n}, options);
+
+    if (transA) {
+      A_i = A_i.transpose(0, 1);
+    }
+
+    if (transB) {
+      B_i = B_i.transpose(0, 1);
+    }
 
     at::mm_out(C_i, A_i, B_i);
 
@@ -63,22 +74,26 @@ void vbmm_cuda_vanilla_impl_grouped(
   auto options = A.data().options();
 
   if (!C.is_defined()) {
-    C.reset(batch_size, num_groups, A.m(), B.n(), options, A.group_sizes());
+    C.reset(batch_size, num_groups, transA ? A.n() : A.m(), transB ? B.m() : B.n(), options, A.group_sizes());
   }
 
   auto A_data_ptr = A.data().data_ptr<scalar_t>();
   auto B_data_ptr = B.data().data_ptr<scalar_t>();
   auto C_data_ptr = C.data().data_ptr<scalar_t>();
 
-  auto A_group_sizes_ptr = A.group_sizes().data_ptr<index_t>();
-  auto B_group_sizes_ptr = B.group_sizes().data_ptr<index_t>();
-  auto C_group_sizes_ptr = C.group_sizes().data_ptr<index_t>();
-  auto A_padded_m_ptr = A.m().data_ptr<index_t>();
-  auto B_padded_m_ptr = B.m().data_ptr<index_t>();
-  auto C_padded_m_ptr = C.m().data_ptr<index_t>();
-  auto A_padded_n_ptr = A.n().data_ptr<index_t>();
-  auto B_padded_n_ptr = B.n().data_ptr<index_t>();
-  auto C_padded_n_ptr = C.n().data_ptr<index_t>();
+  auto A_group_sizes = A.group_sizes().cpu(), B_group_sizes = B.group_sizes().cpu(), C_group_sizes = C.group_sizes().cpu();
+  auto A_padded_m = A.m().cpu(), B_padded_m = B.m().cpu(), C_padded_m = C.m().cpu();
+  auto A_padded_n = A.n().cpu(), B_padded_n = B.n().cpu(), C_padded_n = C.n().cpu();
+
+  auto A_group_sizes_ptr = A_group_sizes.data_ptr<index_t>();
+  auto B_group_sizes_ptr = B_group_sizes.data_ptr<index_t>();
+  auto C_group_sizes_ptr = C_group_sizes.data_ptr<index_t>();
+  auto A_padded_m_ptr = A_padded_m.data_ptr<index_t>();
+  auto B_padded_m_ptr = B_padded_m.data_ptr<index_t>();
+  auto C_padded_m_ptr = C_padded_m.data_ptr<index_t>();
+  auto A_padded_n_ptr = A_padded_n.data_ptr<index_t>();
+  auto B_padded_n_ptr = B_padded_n.data_ptr<index_t>();
+  auto C_padded_n_ptr = C_padded_n.data_ptr<index_t>();
 
   auto policy = thrust::cuda::par(ThrustAllocator()).on(at::cuda::getCurrentCUDAStream());
 
@@ -91,6 +106,14 @@ void vbmm_cuda_vanilla_impl_grouped(
     auto A_i = at::from_blob(A_data_ptr + A_offset, {A_group_size, A_padded_m, A_padded_n}, options);
     auto B_i = at::from_blob(B_data_ptr + B_offset, {B_group_size, B_padded_m, B_padded_n}, options);
     auto C_i = at::from_blob(C_data_ptr + C_offset, {C_group_size, C_padded_m, C_padded_n}, options);
+
+    if (transA) {
+      A_i = A_i.transpose(1, 2);
+    }
+
+    if (transB) {
+      B_i = B_i.transpose(1, 2);
+    }
 
     at::bmm_out(C_i, A_i, B_i);
 
