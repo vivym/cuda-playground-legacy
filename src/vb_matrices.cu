@@ -275,7 +275,7 @@ namespace {
 }
 
 
-std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by() const {
+std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by(index_t num_groups) const {
   if (data_.dim() != 2) {
     throw std::runtime_error("VBMatrices::group_by() only supports 2D tensors");
   }
@@ -305,7 +305,7 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by() const {
 
   auto m_cpu = m.cpu();
   auto m_cpu_ptr = m_cpu.data_ptr<index_t>();
-  const std::vector<index_t> delimeters = dp::get_optimal_group_delimeters(m_cpu_ptr, batch_size_, 3);
+  const std::vector<index_t> delimeters = dp::get_optimal_group_delimeters(m_cpu_ptr, batch_size_, num_groups);
 
   auto delimeters_tensor = at::empty({static_cast<int64_t>(delimeters.size())}, options);
   auto delimeters_ptr = thrust::device_ptr<index_t>(delimeters_tensor.data_ptr<index_t>());
@@ -356,8 +356,6 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by() const {
       thrust::make_constant_iterator<index_t>(1),
       group_m_ptr,
       group_sizes_ptr);
-
-  index_t num_groups = thrust::distance(group_sizes_ptr, new_end.second);
 
   VBMatrices grouped_matrices;
 

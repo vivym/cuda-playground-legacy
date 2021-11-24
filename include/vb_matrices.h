@@ -77,7 +77,7 @@ public:
       std::optional<at::Tensor> group_sizes = std::nullopt,
       bool zero_init = false);
 
-  std::tuple<VBMatrices, at::Tensor> group_by() const;
+  std::tuple<VBMatrices, at::Tensor> group_by(index_t num_groups) const;
 
   index_t num_groups() const { return num_groups_; }
 

@@ -24,14 +24,15 @@ def main():
         # B_.append(torch.randn(k, n, dtype=torch.float32).contiguous().cuda())
         A_.append(torch.randn(m[i], 64, dtype=torch.float32).contiguous().cuda())
 
+    num_groups = 10
     A = VBMatrices(A_)
     for _ in range(10):
-        grouped_A, masks = A.group_by()
+        grouped_A, masks = A.group_by(num_groups)
 
     times = []
     for _ in range(50):
         start_time = time.time()
-        grouped_A, masks = A.group_by()
+        grouped_A, masks = A.group_by(num_groups)
         times.append(time.time() - start_time)
 
     print("group_by", np.mean(times) * 1000)
@@ -58,9 +59,11 @@ def main():
         vbmm(grouped_A, grouped_A, C, 1.0, 0, False, True, VBMMAlgo.Stream)
     
     times = []
+    torch.cuda.synchronize()
     for _ in range(50):
         start_time = time.time()
         vbmm(grouped_A, grouped_A, C, 1.0, 0, False, True, VBMMAlgo.Stream)
+        torch.cuda.synchronize()
         times.append(time.time() - start_time)
 
     print("grouped stream", np.mean(times) * 1000)
@@ -70,9 +73,11 @@ def main():
         vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
     
     times = []
+    torch.cuda.synchronize()
     for _ in range(50):
         start_time = time.time()
         vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
+        torch.cuda.synchronize()
         times.append(time.time() - start_time)
 
     print("vanilla", np.mean(times) * 1000)
@@ -82,9 +87,11 @@ def main():
         vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.MAGMA)
     
     times = []
+    torch.cuda.synchronize()
     for _ in range(50):
         start_time = time.time()
         vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.MAGMA)
+        torch.cuda.synchronize()
         times.append(time.time() - start_time)
 
     print("magma", np.mean(times) * 1000)
