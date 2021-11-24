@@ -9,6 +9,7 @@
 #include <thrust/iterator/discard_iterator.h>
 #include "vb_matrices.h"
 #include "thrust_allocator.h"
+#include "dp.h"
 
 namespace cuda_playground {
 
@@ -358,19 +359,14 @@ namespace {
       thrust::device_ptr<index_t> m_ptr,
       index_t batch_size,
       thrust::device_ptr<index_t> padded_m_ptr,
-      const std::vector<index_t>& delimeters) {
+      thrust::device_ptr<index_t> delimeters_ptr,
+      index_t num_delimeters) {
     thrust::transform(policy, m_ptr, m_ptr + batch_size, padded_m_ptr, [=] __device__ (index_t m) {
-      // for (auto delimeter : delimeters) {
-      //   if (m <= delimeter) {
-      //     return delimeter;
-      //   }
-      // }
-      if (m <= 64) {
-        return 64;
-      } else if (m <= 128) {
-        return 128;
-      } else if (m <= 256) {
-        return 256;
+      for (index_t i = 0; i < num_delimeters; i++) {
+        index_t delimeter = delimeters_ptr[i];
+        if (m <= delimeter) {
+          return delimeter;
+        }
       }
       return m;
     });
@@ -433,12 +429,17 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by() const {
       thrust::make_counting_iterator<index_t>(0),
       inverse_sorted_indices_ptr);
 
-  // TODO: do dp
-  const std::vector<index_t> delimeters{64, 128, 256};
+  auto m_cpu = m.cpu();
+  auto m_cpu_ptr = m_cpu.data_ptr<index_t>();
+  const std::vector<index_t> delimeters = dp::get_optimal_group_delimeters(m_cpu_ptr, batch_size_, 3);
+
+  auto delimeters_tensor = at::empty({static_cast<int64_t>(delimeters.size())}, options);
+  auto delimeters_ptr = thrust::device_ptr<index_t>(delimeters_tensor.data_ptr<index_t>());
+  thrust::copy(delimeters.begin(), delimeters.end(), delimeters_ptr);
 
   auto padded_m = at::empty_like(m);
   auto padded_m_ptr = thrust::device_ptr<index_t>(padded_m.data_ptr<index_t>());
-  generate_padded_m(policy, m_ptr, batch_size_, padded_m_ptr, delimeters);
+  generate_padded_m(policy, m_ptr, batch_size_, padded_m_ptr, delimeters_ptr, static_cast<index_t>(delimeters.size()));
 
   auto padded_m_offsets = at::empty_like(m);
   auto padded_m_offsets_ptr = thrust::device_ptr<index_t>(padded_m_offsets.data_ptr<index_t>());
@@ -447,7 +448,7 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by() const {
       policy,
       padded_m_ptr, padded_m_ptr + batch_size_,
       padded_m_offsets_ptr);
-  
+
   auto unsorted_m_ptr = thrust::device_ptr<index_t>(m_.data_ptr<index_t>());
   auto unsorted_m_offsets = at::empty_like(m);
   auto unsorted_m_offsets_ptr = thrust::device_ptr<index_t>(unsorted_m_offsets.data_ptr<index_t>());
