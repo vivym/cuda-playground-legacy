@@ -85,6 +85,14 @@ public:
 
   const at::Tensor& group_sizes() const { return group_sizes_; }
 
+  const at::Tensor& group_sizes_cpu() const {
+    // TODO: thread-safe
+    if (!group_sizes_cpu_.defined()) {
+      group_sizes_cpu_ = group_sizes_.cpu();
+    }
+    return group_sizes_cpu_;
+  }
+
 private:
   at::Tensor get_offsets_impl() const;
 
@@ -98,6 +106,8 @@ private:
   at::Tensor group_sizes_;
   at::Tensor m_;
   at::Tensor n_;
+
+  mutable at::Tensor group_sizes_cpu_;
   mutable at::Tensor m_cpu_;
   mutable at::Tensor n_cpu_;
   mutable at::Tensor offsets_;

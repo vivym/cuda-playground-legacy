@@ -34,7 +34,7 @@ def main():
         grouped_A, masks = A.group_by()
         times.append(time.time() - start_time)
 
-    print(np.mean(times) * 1000)
+    print("group_by", np.mean(times) * 1000)
 
     print(grouped_A.data.shape)
     print(masks.shape)
@@ -44,12 +44,26 @@ def main():
         vbmm(grouped_A, grouped_A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
     
     times = []
+    torch.cuda.synchronize()
     for _ in range(50):
         start_time = time.time()
         vbmm(grouped_A, grouped_A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
+        torch.cuda.synchronize()
         times.append(time.time() - start_time)
 
-    print(np.mean(times) * 1000)
+    print("grouped vanilla", np.mean(times) * 1000)
+
+    C = VBMatrices()
+    for _ in range(10):
+        vbmm(grouped_A, grouped_A, C, 1.0, 0, False, True, VBMMAlgo.Stream)
+    
+    times = []
+    for _ in range(50):
+        start_time = time.time()
+        vbmm(grouped_A, grouped_A, C, 1.0, 0, False, True, VBMMAlgo.Stream)
+        times.append(time.time() - start_time)
+
+    print("grouped stream", np.mean(times) * 1000)
 
     C = VBMatrices()
     for _ in range(10):
@@ -61,7 +75,7 @@ def main():
         vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
         times.append(time.time() - start_time)
 
-    print(np.mean(times) * 1000)
+    print("vanilla", np.mean(times) * 1000)
 
     C = VBMatrices()
     for _ in range(10):
@@ -73,20 +87,23 @@ def main():
         vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.MAGMA)
         times.append(time.time() - start_time)
 
-    print(np.mean(times) * 1000)
+    print("magma", np.mean(times) * 1000)
 
     A = torch.randn(batch_size, 256, 64, dtype=torch.float32).cuda()
 
+    torch.cuda.synchronize()
     for _ in range(10):
         C = A @ A.transpose(1, 2)
     
+    torch.cuda.synchronize()
     times = []
     for _ in range(50):
         start_time = time.time()
         C = A @ A.transpose(1, 2)
+        torch.cuda.synchronize()
         times.append(time.time() - start_time)
 
-    print(np.mean(times) * 1000)
+    print("full padding:", np.mean(times) * 1000)
 
 
 if __name__ == "__main__":

@@ -4,9 +4,37 @@
 #include "vbmm/vbmm.h"
 #include "thrust_allocator.h"
 
+#include <cuda.h> // for debugging
+
 namespace cuda_playground {
 
 namespace vbmm {
+
+class Timer {
+public:
+  Timer(cudaStream_t stream): stream_(stream) {}
+
+  void start() {
+    cudaEventCreate(&start_);
+    cudaEventCreate(&stop_);
+    cudaEventRecord(start_, stream_);
+  }
+
+  float stop() {
+    float elapsed;
+    cudaEventRecord(stop_, stream_);
+    cudaEventSynchronize(stop_);
+    cudaEventElapsedTime(&elapsed, start_, stop_);
+    cudaEventDestroy(start_);
+    cudaEventDestroy(stop_);
+    return elapsed;
+  }
+
+private:
+  cudaStream_t stream_;
+  cudaEvent_t start_;
+  cudaEvent_t stop_;
+};
 
 template <typename scalar_t, typename index_t>
 void vbmm_cuda_vanilla_impl(
@@ -18,16 +46,20 @@ void vbmm_cuda_vanilla_impl(
   auto batch_size = A.batch_size();
   auto options = A.data().options();
 
+  Timer timer(at::cuda::getCurrentCUDAStream());
+
   if (!C.is_defined()) {
+    timer.start();
     C.reset(batch_size, transA ? A.n() : A.m(), transB ? B.m() : B.n(), options);
+    std::cout << "C init: " << timer.stop() << std::endl;
   }
 
   auto A_data_ptr = A.data().data_ptr<scalar_t>();
   auto B_data_ptr = B.data().data_ptr<scalar_t>();
   auto C_data_ptr = C.data().data_ptr<scalar_t>();
 
-  auto A_m = A.m().cpu(), B_m = B.m().cpu(), C_m = C.m().cpu();
-  auto A_n = A.n().cpu(), B_n = B.n().cpu(), C_n = C.n().cpu();
+  auto A_m = A.m_cpu(), B_m = B.m_cpu(), C_m = C.m_cpu();
+  auto A_n = A.n_cpu(), B_n = B.n_cpu(), C_n = C.n_cpu();
 
   auto A_m_ptr = A_m.data_ptr<index_t>();
   auto B_m_ptr = B_m.data_ptr<index_t>();
@@ -73,17 +105,32 @@ void vbmm_cuda_vanilla_impl_grouped(
   auto num_groups = A.num_groups();
   auto options = A.data().options();
 
+  Timer timer(at::cuda::getCurrentCUDAStream());
+  constexpr bool timing = false;
+
   if (!C.is_defined()) {
+    if (timing) {
+      timer.start();
+    }
     C.reset(batch_size, num_groups, transA ? A.n() : A.m(), transB ? B.m() : B.n(), options, A.group_sizes());
+    if (timing) {
+      std::cout << "vbmm_cuda_vanilla_impl_grouped C init: " << timer.stop() << std::endl;
+    }
   }
 
   auto A_data_ptr = A.data().data_ptr<scalar_t>();
   auto B_data_ptr = B.data().data_ptr<scalar_t>();
   auto C_data_ptr = C.data().data_ptr<scalar_t>();
 
-  auto A_group_sizes = A.group_sizes().cpu(), B_group_sizes = B.group_sizes().cpu(), C_group_sizes = C.group_sizes().cpu();
-  auto A_padded_m = A.m().cpu(), B_padded_m = B.m().cpu(), C_padded_m = C.m().cpu();
-  auto A_padded_n = A.n().cpu(), B_padded_n = B.n().cpu(), C_padded_n = C.n().cpu();
+  if (timing) {
+    timer.start();
+  }
+  auto A_group_sizes = A.group_sizes_cpu(), B_group_sizes = B.group_sizes_cpu(), C_group_sizes = C.group_sizes_cpu();
+  auto A_padded_m = A.m_cpu(), B_padded_m = B.m_cpu(), C_padded_m = C.m_cpu();
+  auto A_padded_n = A.n_cpu(), B_padded_n = B.n_cpu(), C_padded_n = C.n_cpu();
+  if (timing) {
+    std::cout << "to cpu: " << timer.stop() << std::endl;
+  }
 
   auto A_group_sizes_ptr = A_group_sizes.data_ptr<index_t>();
   auto B_group_sizes_ptr = B_group_sizes.data_ptr<index_t>();
@@ -95,18 +142,25 @@ void vbmm_cuda_vanilla_impl_grouped(
   auto B_padded_n_ptr = B_padded_n.data_ptr<index_t>();
   auto C_padded_n_ptr = C_padded_n.data_ptr<index_t>();
 
-  auto policy = thrust::cuda::par(ThrustAllocator()).on(at::cuda::getCurrentCUDAStream());
-
   index_t A_offset = 0, B_offset = 0, C_offset = 0;
   for (index_t i = 0; i < num_groups; i++) {
     auto A_group_size = A_group_sizes_ptr[i], B_group_size = B_group_sizes_ptr[i], C_group_size = C_group_sizes_ptr[i];
     auto A_padded_m = A_padded_m_ptr[i], B_padded_m = B_padded_m_ptr[i], C_padded_m = C_padded_m_ptr[i];
     auto A_padded_n = A_padded_n_ptr[i], B_padded_n = B_padded_n_ptr[i], C_padded_n = C_padded_n_ptr[i];
 
+    if (timing) {
+      timer.start();
+    }
     auto A_i = at::from_blob(A_data_ptr + A_offset, {A_group_size, A_padded_m, A_padded_n}, options);
     auto B_i = at::from_blob(B_data_ptr + B_offset, {B_group_size, B_padded_m, B_padded_n}, options);
     auto C_i = at::from_blob(C_data_ptr + C_offset, {C_group_size, C_padded_m, C_padded_n}, options);
+    if (timing) {
+      std::cout << "at::from_blob: " << i << " " << timer.stop() << std::endl;
+    }
 
+    if (timing) {
+      timer.start();
+    }
     if (transA) {
       A_i = A_i.transpose(1, 2);
     }
@@ -114,8 +168,17 @@ void vbmm_cuda_vanilla_impl_grouped(
     if (transB) {
       B_i = B_i.transpose(1, 2);
     }
+    if (timing) {
+      std::cout << "transpose: " << i << " " << timer.stop() << std::endl;
+    }
 
+    if (timing) {
+      timer.start();
+    }
     at::bmm_out(C_i, A_i, B_i);
+    if (timing) {
+      std::cout << "bmm_out: " << i << " " << timer.stop() << std::endl;
+    }
 
     A_offset += A_group_size * A_padded_m * A_padded_n;
     B_offset += B_group_size * B_padded_m * B_padded_n;
