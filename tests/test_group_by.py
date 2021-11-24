@@ -13,11 +13,16 @@ def main():
 
     batch_size = 4096
     A_, B_ = [], []
+    m = []
     for _ in range(batch_size):
-        m, n, k = random.randint(32, 256), random.randint(32, 256), 64
+        m.append(random.randint(32, 256))
+    # m.sort()
+    for i in range(batch_size):
+        # m, n, k = random.randint(32, 256), random.randint(32, 256), 64
         # m, n, k = 256, 256, 64
-        A_.append(torch.randn(m, k, dtype=torch.float32).contiguous().cuda())
-        B_.append(torch.randn(k, n, dtype=torch.float32).contiguous().cuda())
+        # A_.append(torch.randn(m, k, dtype=torch.float32).contiguous().cuda())
+        # B_.append(torch.randn(k, n, dtype=torch.float32).contiguous().cuda())
+        A_.append(torch.randn(m[i], 64, dtype=torch.float32).contiguous().cuda())
 
     A = VBMatrices(A_)
     for _ in range(10):
@@ -54,6 +59,18 @@ def main():
     for _ in range(50):
         start_time = time.time()
         vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.Vanilla)
+        times.append(time.time() - start_time)
+
+    print(np.mean(times) * 1000)
+
+    C = VBMatrices()
+    for _ in range(10):
+        vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.MAGMA)
+    
+    times = []
+    for _ in range(50):
+        start_time = time.time()
+        vbmm(A, A, C, 1.0, 0, False, True, VBMMAlgo.MAGMA)
         times.append(time.time() - start_time)
 
     print(np.mean(times) * 1000)
