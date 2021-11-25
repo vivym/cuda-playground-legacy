@@ -1,6 +1,7 @@
 #include "dp.h"
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 
 namespace cuda_playground {
 
@@ -10,9 +11,11 @@ constexpr int kInf = 100000000;
 
 template <typename index_t>
 std::vector<index_t> get_optimal_group_delimeters(index_t* sizes_ptr, index_t batch_size, index_t num_groups) {
+  auto start = std::chrono::steady_clock::now();
   std::vector<index_t> f(batch_size * num_groups);
   std::vector<index_t> d(batch_size * num_groups);
   std::vector<index_t> S(batch_size);
+  std::vector<index_t> A(num_groups, 0);
 
   S[0] = sizes_ptr[0];
   for (index_t i = 1; i < batch_size; ++i) {
@@ -25,16 +28,19 @@ std::vector<index_t> get_optimal_group_delimeters(index_t* sizes_ptr, index_t ba
     f[k] = kInf;
     d[k] = -1;
   }
+  index_t total = 0;
   for (index_t i = 1; i < batch_size; i++) {
     f[i * num_groups + 0] = sizes_ptr[i] * (i + 1) - S[i];
     d[i * num_groups + 0] = -1;
     for (index_t k = 1; k < num_groups; k ++) {
       index_t min_f = kInf;
-      for (index_t j = 0; j < i; j++) {
+      total += i - A[k];
+      for (index_t j = A[k]; j < i; j++) {
         auto value = f[j * num_groups + k - 1] + sizes_ptr[i] * (i - j) - (S[i] - S[j]);
         if (value < min_f) {
           min_f = value;
-          d[i * num_groups + k] = j; 
+          d[i * num_groups + k] = j;
+          A[k] = j;
         }
       }
       f[i * num_groups + k] = min_f;
@@ -50,6 +56,11 @@ std::vector<index_t> get_optimal_group_delimeters(index_t* sizes_ptr, index_t ba
     pos = d[pos * num_groups + (--k)];
   }
   std::reverse(delimeters.begin(), delimeters.end());
+
+  auto end = std::chrono::steady_clock::now();
+
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "dp: " << elapsed.count() << " " << total << std::endl;
 
   std::cout << "delimeters:";
   for (index_t i = 0; i < delimeters.size(); i++) {
