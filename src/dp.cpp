@@ -156,7 +156,7 @@ std::vector<index_t> get_optimal_group_delimeters_2(const index_t* sizes_ptr, in
           auto p1 = queue[cur - 1];
           auto p2 = queue[cur];
           auto p3 = (cur + 1 < queue.size()) ? queue[cur + 1] : Point(batch_size, kInf);
-          if ((p2.y - p1.y) / (p2.x - p1.x) <= slope && (p3.y - p2.y) / (p3.x - p2.x) >= slope) {
+          if ((p2.y - p1.y) <= slope * (p2.x - p1.x) && (p3.y - p2.y) >= slope * (p3.x - p2.x)) {
             if (p1.x >= 0 && p1.x < batch_size) {
               check(i, p1.x, k, min_f);
             }
