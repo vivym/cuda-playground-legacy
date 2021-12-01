@@ -1,7 +1,6 @@
-#include "dp.h"
 #include <iostream>
 #include <algorithm>
-#include <chrono>
+#include "dp.h"
 
 namespace cuda_playground {
 
@@ -11,7 +10,6 @@ constexpr int kInf = 100000000;
 
 template <typename index_t>
 std::vector<index_t> get_optimal_group_delimeters(const index_t* sizes_ptr, index_t batch_size, index_t num_groups) {
-  auto start = std::chrono::steady_clock::now();
   std::vector<index_t> f(batch_size * num_groups);
   std::vector<index_t> d(batch_size * num_groups);
   std::vector<index_t> S(batch_size);
@@ -57,17 +55,6 @@ std::vector<index_t> get_optimal_group_delimeters(const index_t* sizes_ptr, inde
   }
   std::reverse(delimeters.begin(), delimeters.end());
 
-  auto end = std::chrono::steady_clock::now();
-
-  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  std::cout << "dp: " << elapsed.count() << " " << total << std::endl;
-
-  std::cout << "delimeters:";
-  for (index_t i = 0; i < delimeters.size(); i++) {
-    std::cout << " " << delimeters[i];
-  }
-  std::cout << std::endl;
-
   return delimeters;
 }
 
@@ -101,7 +88,6 @@ namespace {
 
 template <typename index_t>
 std::vector<index_t> get_optimal_group_delimeters_2(const index_t* sizes_ptr, index_t batch_size, index_t num_groups) {
-  auto start = std::chrono::steady_clock::now();
   std::vector<index_t> f(batch_size * num_groups);
   std::vector<index_t> d(batch_size * num_groups);
   std::vector<index_t> S(batch_size);
@@ -129,10 +115,6 @@ std::vector<index_t> get_optimal_group_delimeters_2(const index_t* sizes_ptr, in
   };
 
   auto enqueue = [&](index_t k, Point<index_t> p) {
-    // if (p.y >= kInf) {
-    //   return;
-    // }
-
     auto& queue = queues[k];
     
     if (queue.size() < 2) {
@@ -151,14 +133,6 @@ std::vector<index_t> get_optimal_group_delimeters_2(const index_t* sizes_ptr, in
       }
       queue.push_back(p);
     }
-
-    // std::cout << "queue " << k << ":";
-    // for (auto p : queue) {
-    //   std::cout << " (" << p.x << ", " << p.y << ")";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "cur " << k << ": " << curs[k] << std::endl;
   };
 
   for (index_t i = 1; i < batch_size; i++) {
@@ -182,8 +156,6 @@ std::vector<index_t> get_optimal_group_delimeters_2(const index_t* sizes_ptr, in
           auto p1 = queue[cur - 1];
           auto p2 = queue[cur];
           auto p3 = (cur + 1 < queue.size()) ? queue[cur + 1] : Point(batch_size, kInf);
-          // std::cout << "hhhh: " << cur << "  slope: " << slope << " " << (p2.y - p1.y) / (p2.x - p1.x) << " " << (p3.y - p2.y) / (p3.x - p2.x) << std::endl;
-          // std::cout << p1.x << " " << p1.y << " " << p2.x << " " << p2.y << " " << p3.x << " " << p3.y << std::endl;
           if ((p2.y - p1.y) / (p2.x - p1.x) <= slope && (p3.y - p2.y) / (p3.x - p2.x) >= slope) {
             if (p1.x >= 0 && p1.x < batch_size) {
               check(i, p1.x, k, min_f);
@@ -215,17 +187,6 @@ std::vector<index_t> get_optimal_group_delimeters_2(const index_t* sizes_ptr, in
     pos = d[pos * num_groups + (--k)];
   }
   std::reverse(delimeters.begin(), delimeters.end());
-
-  auto end = std::chrono::steady_clock::now();
-
-  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  std::cout << "dp: " << elapsed.count() << std::endl;
-
-  std::cout << "delimeters:";
-  for (index_t i = 0; i < delimeters.size(); i++) {
-    std::cout << " " << delimeters[i];
-  }
-  std::cout << std::endl;
 
   return delimeters;
 }
