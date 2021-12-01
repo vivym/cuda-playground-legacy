@@ -305,7 +305,7 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by(index_t num_groups) cons
 
   auto m_cpu = m.cpu();
   auto m_cpu_ptr = m_cpu.data_ptr<index_t>();
-  const std::vector<index_t> delimeters = dp::get_optimal_group_delimeters(m_cpu_ptr, batch_size_, num_groups);
+  const std::vector<index_t> delimeters = dp::get_optimal_group_delimeters_2(m_cpu_ptr, batch_size_, num_groups);
 
   auto delimeters_tensor = at::empty({static_cast<int64_t>(delimeters.size())}, options);
   auto delimeters_ptr = thrust::device_ptr<index_t>(delimeters_tensor.data_ptr<index_t>());

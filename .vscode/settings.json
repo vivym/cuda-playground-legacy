@@ -81,7 +81,8 @@
     "future": "cpp",
     "cfenv": "cpp",
     "*.ipp": "cpp",
-    "csignal": "cpp"
+    "csignal": "cpp",
+    "queue": "cpp"
   },
   "C_Cpp.default.cppStandard": "c++17",
   "C_Cpp.default.compileCommands": "${workspaceFolder}/_skbuild/linux-x86_64-3.8/cmake-build/compile_commands.json",
