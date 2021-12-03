@@ -12,11 +12,13 @@ from cuda_playground.ops.dp import get_optimal_group_delimeters_wrapper
 def main_():
     random.seed(0)
 
-    batch_size = 4096
+    batch_size = 10000
     A_, B_ = [], []
     m = []
     for _ in range(batch_size):
-        m.append(random.randint(32, 256))
+        # m.append(random.randint(32, 256))
+        m.append(random.randint(1, 9))
+
     # m.sort()
     for i in range(batch_size):
         # m, n, k = random.randint(32, 256), random.randint(32, 256), 64
@@ -25,7 +27,7 @@ def main_():
         # B_.append(torch.randn(k, n, dtype=torch.float32).contiguous().cuda())
         A_.append(torch.randn(m[i], 64, dtype=torch.float32).contiguous().cuda())
 
-    num_groups = 6
+    num_groups = 3
     A = VBMatrices(A_)
     for _ in range(10):
         grouped_A, masks = A.group_by(num_groups)
@@ -119,26 +121,26 @@ def main_():
 def main():
     random.seed(0)
 
-    batch_size = 4096
+    batch_size = 200000
     m = []
     for _ in range(batch_size):
-        m.append(random.randint(32, 256))
+        m.append(random.randint(1, 9))
 
     m.sort()
     # print(m)
 
     for _ in range(10):
-        get_optimal_group_delimeters_wrapper(m, 6)
+        get_optimal_group_delimeters_wrapper(m, 2)
 
     times = []
     for _ in range(50):
         start_time = time.time()
-        get_optimal_group_delimeters_wrapper(m, 6)
+        get_optimal_group_delimeters_wrapper(m, 2)
         times.append(time.time() - start_time)
 
     print("time:", np.mean(times) * 1000)
 
-    delimeters = get_optimal_group_delimeters_wrapper(m, 5)
+    delimeters = get_optimal_group_delimeters_wrapper(m, 2)
     print(delimeters)
 
 

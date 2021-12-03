@@ -281,20 +281,20 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by(index_t num_groups) cons
   }
 
   auto policy = thrust::cuda::par(ThrustAllocator()).on(at::cuda::getCurrentCUDAStream());
-  
+
   auto options = m_.options();
 
   auto m = m_.clone();
   auto m_ptr = thrust::device_ptr<index_t>(m.data_ptr<index_t>());
-  
+
   auto sorted_indices = at::arange(batch_size_, options);
   auto sorted_indices_ptr = thrust::device_ptr<index_t>(sorted_indices.data_ptr<index_t>());
-  
+
   thrust::sort_by_key(
       policy,
       m_ptr, m_ptr + batch_size_,
       sorted_indices_ptr);
-  
+
   auto inverse_sorted_indices = at::empty_like(sorted_indices);
   auto inverse_sorted_indices_ptr = thrust::device_ptr<index_t>(inverse_sorted_indices.data_ptr<index_t>());
   thrust::gather(
@@ -327,10 +327,15 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by(index_t num_groups) cons
   auto unsorted_m_offsets = at::empty_like(m);
   auto unsorted_m_offsets_ptr = thrust::device_ptr<index_t>(unsorted_m_offsets.data_ptr<index_t>());
 
+  thrust::exclusive_scan(
+      policy,
+      unsorted_m_ptr, unsorted_m_ptr + batch_size_,
+      unsorted_m_offsets_ptr);
+
   auto total_size = thrust::reduce(policy, m_ptr, m_ptr + batch_size_);
   auto indices = at::empty({total_size}, options);
   auto indices_ptr = thrust::device_ptr<index_t>(indices.data_ptr<index_t>());
-  
+
   auto masks = at::empty({total_size}, options);
   auto masks_ptr = thrust::device_ptr<index_t>(masks.data_ptr<index_t>());
 
