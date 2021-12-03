@@ -1,6 +1,6 @@
 #include <torch/extension.h>
 #include <thrust/device_ptr.h>
-#include <thrust/gather.h>
+#include <thrust/scatter.h>
 #include <thrust/scan.h>
 #include <thrust/reduce.h>
 #include <thrust/transform_reduce.h>
@@ -254,8 +254,7 @@ namespace {
       thrust::device_ptr<index_t> inverse_sorted_indices_ptr,
       thrust::device_ptr<index_t> padded_m_offsets_ptr,
       thrust::device_ptr<index_t> unsorted_m_ptr,
-      thrust::device_ptr<index_t> indices_ptr,
-      thrust::device_ptr<index_t> masks_ptr) {
+      thrust::device_ptr<index_t> indices_ptr) {
     thrust::for_each(
         policy,
         thrust::make_counting_iterator<index_t>(0),
@@ -269,7 +268,6 @@ namespace {
               policy,
               indices_ptr + m_offset, indices_ptr + m_offset + m,
               static_cast<index_t>(padded_m_offset));
-          thrust::fill(policy, masks_ptr + m_offset, masks_ptr + m_offset + m, static_cast<index_t>(1));
         });
   }
 }
@@ -297,15 +295,16 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by(index_t num_groups) cons
 
   auto inverse_sorted_indices = at::empty_like(sorted_indices);
   auto inverse_sorted_indices_ptr = thrust::device_ptr<index_t>(inverse_sorted_indices.data_ptr<index_t>());
-  thrust::gather(
+  thrust::scatter(
       policy,
-      sorted_indices_ptr, sorted_indices_ptr + batch_size_,
-      thrust::make_counting_iterator<index_t>(0),
+      thrust::make_counting_iterator<index_t>(0), thrust::make_counting_iterator<index_t>(batch_size_),
+      sorted_indices_ptr,
       inverse_sorted_indices_ptr);
 
   auto m_cpu = m.cpu();
   auto m_cpu_ptr = m_cpu.data_ptr<index_t>();
   const std::vector<index_t> delimeters = dp::get_optimal_group_delimeters_2(m_cpu_ptr, batch_size_, num_groups);
+  std::cout << "delimeters: " << delimeters << std::endl;
 
   auto delimeters_tensor = at::empty({static_cast<int64_t>(delimeters.size())}, options);
   auto delimeters_ptr = thrust::device_ptr<index_t>(delimeters_tensor.data_ptr<index_t>());
@@ -336,9 +335,6 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by(index_t num_groups) cons
   auto indices = at::empty({total_size}, options);
   auto indices_ptr = thrust::device_ptr<index_t>(indices.data_ptr<index_t>());
 
-  auto masks = at::empty({total_size}, options);
-  auto masks_ptr = thrust::device_ptr<index_t>(masks.data_ptr<index_t>());
-
   generate_indices_and_masks(
       policy,
       batch_size_,
@@ -346,8 +342,7 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by(index_t num_groups) cons
       inverse_sorted_indices_ptr,
       padded_m_offsets_ptr,
       unsorted_m_ptr,
-      indices_ptr,
-      masks_ptr);
+      indices_ptr);
 
   auto group_m = at::empty({static_cast<int64_t>(delimeters.size())}, options);
   auto group_m_ptr = thrust::device_ptr<index_t>(group_m.data_ptr<index_t>());
@@ -365,9 +360,13 @@ std::tuple<VBMatrices, at::Tensor> VBMatrices::group_by(index_t num_groups) cons
   VBMatrices grouped_matrices;
 
   auto group_n = at::full_like(group_m, data_.size(1));
+  auto indices_long = indices.toType(at::kLong);
   grouped_matrices.reset(batch_size_, num_groups, group_m, group_n, data_.options(), group_sizes, true);
   grouped_matrices.data() = grouped_matrices.data().reshape({ -1, data_.size(1) });
-  grouped_matrices.data().index_put_({indices.toType(at::kLong), "..."}, data_);
+  grouped_matrices.data().index_put_({indices_long, "..."}, data_);
+
+  auto masks = at::zeros({grouped_matrices.data().size(0)}, options.dtype(at::kBool));
+  masks.index_put_({indices_long}, true);
 
   return {
     std::move(grouped_matrices),

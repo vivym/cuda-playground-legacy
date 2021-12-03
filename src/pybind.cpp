@@ -10,6 +10,8 @@ PYBIND11_MODULE(_ops, m) {
     .def(py::init<>())
     .def(py::init<const std::vector<at::Tensor>>())
     .def_property_readonly("data", static_cast<const at::Tensor& (VBMatrices::*)() const>(&VBMatrices::data))
+    .def_property_readonly("m", static_cast<const at::Tensor& (VBMatrices::*)() const>(&VBMatrices::m))
+    .def_property_readonly("n", static_cast<const at::Tensor& (VBMatrices::*)() const>(&VBMatrices::n))
     .def("group_by", &VBMatrices::group_by);
   
   m.def("vbmm", &vbmm::vbmm);
